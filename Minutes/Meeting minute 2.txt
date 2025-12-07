@@ -1,0 +1,20 @@
+Meeting minute 2
+Date: December 7th, 2025
+Location: Online Platform – Discord
+
+Participants: Keelan, Luke, Saurav, Alex
+Time: 2:00 PM
+Agenda
+- Welcome & Objectives  
+- Prototype Demonstration  
+- Technical Review  
+- UX Feedback  
+- Next Development Milestones  
+- Testing & Deployment Plan  
+- Open Discussion & Action Items  
+
+ Next meeting
+11th December 2025, 2pm on Discord  
+
+
+ 
