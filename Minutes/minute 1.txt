@@ -1,0 +1,14 @@
+Meeting Minute for Motion Master Game Project
+Date: December 1st, 2025
+Location: Online Platform – Discord
+
+Participants: Keelan, Luke, Saurav, Alex
+Time: 2:00 PM
+Agenda
+• Discussion about Motion Master gaming prototype
+• Use of webapp with JavaScript and MediaPipe
+• Game design discussion
+
+Next meeting
+7th December 2025, 2pm on Discord
+
