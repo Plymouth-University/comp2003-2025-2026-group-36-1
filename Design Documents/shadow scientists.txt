@@ -1,0 +1,10 @@
+Shadow Scientists 
+Objective: Catch the green energy orbs and avoid the red danger orbs.
+Controls: Move your left hand over the left side of the screen to catch left orbs, and your right hand over the right side for right orbs. The game uses your webcam and hand tracking.
+Levels: Each level gets slightly harder — orbs fall faster and appear more often.
+Scoring:
+Catching an energy orb gives 1 point (with rainbow sparks and a fun sound).
+Touching a danger orb loses 1 point (with a “buzz” sound).
+Time: Each level lasts 20 seconds, then you move to the next level.
+Visual guidance: Dashed zones show where to place your hands.
+Goal: Collect as much energy as possible while progressing through levels — all while having fun moving your hands like a “shadow scientist”!
