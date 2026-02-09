@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Shadow Scientists - Game</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<style>
+body {
+  margin: 0;
+  font-family: Arial, sans-serif;
+  background: #111;
+  color: white;
+  text-align: center;
+}
+h2 { margin: 8px; }
+
+#game {
+  position: relative;
+  width: 100%;
+  max-width: 640px;
+  height: 420px;
+  margin: auto;
+  background: black;
+  overflow: hidden;
+  border: 4px solid #0ff;
+}
+
+.orb {
+  position: absolute;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+}
+
+.energy { background: #0f0; }
+.danger { background: red; }
+
+#hud {
+  font-size: 16px;
+  padding: 6px;
+}
+
+#message {
+  font-size: 18px;
+  color: yellow;
+  margin: 6px;
+}
+
+#zones {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+.zone {
+  position: absolute;
+  width: 50%;
+  height: 100%;
+  border: 2px dashed #0ff;
+}
+#leftZone { left: 0; }
+#rightZone { right: 0; }
+
+.spark {
+  position: absolute;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  pointer-events: none;
+  opacity: 1;
+}
+video { display: none; }
+</style>
+</head>
+
+<body>
+<h2>🎭 Shadow Scientists - Kids Mode Fun</h2>
+
+<div id="hud">
+Level: <span id="level">1</span> |
+⏱ <span id="time">20</span>s |
+⚡ Energy: <span id="score">0</span>
+</div>
+
+<div id="message"></div>
+<div id="game">
+  <div id="zones">
+    <div id="leftZone" class="zone"></div>
+    <div id="rightZone" class="zone"></div>
+  </div>
+</div>
+
+<video id="video" autoplay playsinline></video>
+
+<!-- MediaPipe Hands -->
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
+
+<script>
+// Sounds
+const collectSound = new Audio('https://freesound.org/data/previews/341/341695_62412-lq.mp3');
+const dangerSound = new Audio('https://freesound.org/data/previews/82/82921_1022650-lq.mp3');
+
+const video = document.getElementById("video");
+const game = document.getElementById("game");
+const message = document.getElementById("message");
+
+let score = 0, level = 1, timeLeft = 20, levelTime = 20;
+let orbSpeedMultiplier = 0.8, spawnInterval = 1500, orbs = [];
+let leftActive = false, rightActive = false, spawnTimer;
+
+// Webcam
+navigator.mediaDevices.getUserMedia({ video: true })
+  .then(stream => video.srcObject = stream)
+  .catch(() => alert("Webcam is required"));
+
+// Create orbs
+function createOrb(type) {
+  const orb = document.createElement("div");
+  orb.className = "orb " + type;
+  orb.x = Math.random() * (game.clientWidth - 30);
+  orb.y = -30;
+  orb.vy = 1 + Math.random() * 1.5;
+  game.appendChild(orb);
+  orbs.push({ el: orb, type });
+}
+
+// Sparks
+function createSpark(x, y) {
+  const spark = document.createElement("div");
+  spark.className = "spark";
+  spark.style.left = x + "px";
+  spark.style.top = y + "px";
+  spark.style.background = `hsl(${Math.random()*360}, 100%, 50%)`;
+  game.appendChild(spark);
+
+  let vy = -Math.random()*2 - 1;
+  let vx = (Math.random()-0.5)*4;
+  let opacity = 1;
+
+  const animate = () => {
+    opacity -= 0.05;
+    spark.style.opacity = opacity;
+    spark.style.top = (parseFloat(spark.style.top) + vy) + "px";
+    spark.style.left = (parseFloat(spark.style.left) + vx) + "px";
+    if(opacity <= 0) game.removeChild(spark);
+    else requestAnimationFrame(animate);
+  }
+  animate();
+}
+
+// Spawn orbs
+function spawnOrbs() {
+  if(Math.random() < 0.8) createOrb("energy");
+  else createOrb("danger");
+}
+
+// Level system
+function nextLevel() {
+  level++;
+  orbSpeedMultiplier += 0.3;
+  spawnInterval = Math.max(600, spawnInterval - 100);
+  timeLeft = levelTime;
+  document.getElementById("level").innerText = level;
+  message.innerText = `Level ${level}! Keep going!`;
+  clearInterval(spawnTimer);
+  spawnTimer = setInterval(spawnOrbs, spawnInterval);
+  setTimeout(() => message.innerText = "", 2000);
+}
+
+// Countdown timer
+setInterval(() => {
+  if(timeLeft > 0) {
+    timeLeft--;
+    document.getElementById("time").innerText = timeLeft;
+  } else nextLevel();
+}, 1000);
+
+// MediaPipe Hands
+const hands = new Hands({locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`});
+hands.setOptions({
+  maxNumHands: 2,
+  modelComplexity: 0,
+  minDetectionConfidence: 0.6,
+  minTrackingConfidence: 0.6
+});
+hands.onResults(results => {
+  leftActive = false; rightActive = false;
+  if(results.multiHandLandmarks)
+    results.multiHandLandmarks.forEach((l,i) => {
+      const handedness = results.multiHandedness[i].label;
+      if(handedness==="Left") leftActive=true;
+      if(handedness==="Right") rightActive=true;
+    });
+});
+
+const camera = new Camera(video, {onFrame: async()=>{await hands.send({image:video});}, width:640,height:480});
+camera.start();
+
+spawnTimer = setInterval(spawnOrbs, spawnInterval);
+
+// Game loop
+function loop() {
+  orbs.forEach((o,i) => {
+    o.el.y += o.el.vy*orbSpeedMultiplier;
+    if(leftActive && o.el.x<game.clientWidth/2) o.el.y-=2.5;
+    if(rightActive && o.el.x>game.clientWidth/2) o.el.y-=2.5;
+
+    o.el.style.left=o.el.x+"px";
+    o.el.style.top=o.el.y+"px";
+
+    if(o.el.y>game.clientHeight){
+      game.removeChild(o.el);
+      orbs.splice(i,1);
+    }
+
+    if(o.el.y>game.clientHeight-80 &&
+      ((leftActive && o.el.x<game.clientWidth/2)||
+       (rightActive && o.el.x>game.clientWidth/2))){
+      
+      if(o.type==="energy"){
+        score++;
+        collectSound.currentTime = 0; collectSound.play();
+        createSpark(o.el.x,o.el.y);
+      } else {
+        score=Math.max(0,score-1);
+        dangerSound.currentTime=0; dangerSound.play();
+      }
+      document.getElementById("score").innerText=score;
+      game.removeChild(o.el); orbs.splice(i,1);
+    }
+  });
+  requestAnimationFrame(loop);
+}
+loop();
+</script>
+</body>
+</html>
