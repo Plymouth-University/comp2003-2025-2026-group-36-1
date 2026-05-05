@@ -1,0 +1,776 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Shadow Wizards</title>
+<link href="https://fonts.googleapis.com/css2?family=Cinzel+Decorative:wght@700;900&family=Cinzel:wght@400;600;700&family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js" crossorigin="anonymous"></script>
+<style>
+:root {
+  --bg:#0b0c1a; --bg2:#13152b; --panel:#1a1d35; --border:rgba(255,255,255,0.08);
+  --text:#e8eaf6; --muted:#8b8fa8; --gold:#f5c842; --gold2:#ffe082;
+  --fire:#ff5722; --ice:#29b6f6; --wind:#66bb6a; --rock:#a1887f;
+  --ka:#e21b3c; --kb:#1368ce; --kc:#d89e00; --kd:#26890c;
+  --radius:14px; --shadow:0 8px 32px rgba(0,0,0,0.5);
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+html,body{width:100%;height:100%;overflow:hidden;}
+body{background:var(--bg);color:var(--text);font-family:'Nunito',sans-serif;user-select:none;}
+#bg-canvas{position:fixed;inset:0;z-index:0;pointer-events:none;}
+.screen{position:fixed;inset:0;z-index:10;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:20px;transition:opacity 0.4s,transform 0.4s;}
+.screen.hidden{opacity:0;pointer-events:none;transform:scale(0.97);}
+
+/* MENU */
+#menu-screen{gap:24px;}
+.logo-icon{font-size:5rem;filter:drop-shadow(0 0 24px rgba(245,200,66,0.7));animation:float 3s ease-in-out infinite;display:block;text-align:center;}
+@keyframes float{0%,100%{transform:translateY(0)}50%{transform:translateY(-12px)}}
+.logo-title{font-family:'Cinzel Decorative',cursive;font-size:clamp(2rem,5vw,3.5rem);font-weight:900;background:linear-gradient(135deg,#f5c842,#ff8a50,#f5c842);background-size:200% auto;-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;animation:shimmer 3s linear infinite;text-align:center;line-height:1.1;}
+@keyframes shimmer{0%{background-position:0%}100%{background-position:200%}}
+.logo-sub{font-family:'Cinzel',serif;font-size:0.85rem;letter-spacing:0.3em;color:var(--muted);margin-top:6px;text-align:center;}
+.menu-card{background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);padding:26px 32px;width:min(480px,100%);display:flex;flex-direction:column;gap:16px;box-shadow:var(--shadow);}
+.menu-label{font-family:'Cinzel',serif;font-size:0.7rem;letter-spacing:0.2em;color:var(--muted);text-transform:uppercase;margin-bottom:4px;}
+.diff-row{display:flex;gap:8px;flex-wrap:wrap;}
+.diff-btn{flex:1;min-width:55px;background:rgba(255,255,255,0.05);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:'Nunito',sans-serif;font-size:0.85rem;font-weight:700;padding:8px 4px;cursor:pointer;transition:all 0.2s;}
+.diff-btn:hover{background:rgba(245,200,66,0.1);border-color:var(--gold);}
+.diff-btn.active{background:rgba(245,200,66,0.2);border-color:var(--gold);color:var(--gold);}
+.mode-row{display:flex;gap:10px;}
+.mode-btn{flex:1;background:rgba(255,255,255,0.05);border:1px solid var(--border);border-radius:8px;color:var(--muted);font-family:'Nunito',sans-serif;font-size:0.85rem;font-weight:700;padding:10px 8px;cursor:pointer;transition:all 0.2s;text-align:center;line-height:1.4;}
+.mode-btn:hover{border-color:rgba(255,255,255,0.2);color:var(--text);}
+.mode-btn.active{background:rgba(99,179,237,0.15);border-color:#63b3ed;color:#63b3ed;}
+.toggle-row{display:flex;align-items:center;gap:12px;padding:10px 14px;background:rgba(255,255,255,0.03);border:1px solid var(--border);border-radius:8px;cursor:pointer;}
+.toggle-row span{flex:1;font-size:0.9rem;color:var(--muted);}
+.toggle-pill{width:44px;height:24px;background:rgba(255,255,255,0.1);border-radius:12px;position:relative;transition:background 0.3s;flex-shrink:0;}
+.toggle-pill::after{content:'';position:absolute;top:3px;left:3px;width:18px;height:18px;background:var(--muted);border-radius:50%;transition:all 0.3s;}
+.toggle-row.on .toggle-pill{background:rgba(99,179,237,0.4);}
+.toggle-row.on .toggle-pill::after{left:23px;background:#63b3ed;}
+.start-btn{background:linear-gradient(135deg,#f5c842,#ff8a50);border:none;border-radius:10px;color:#0b0c1a;font-family:'Cinzel',serif;font-size:1.05rem;font-weight:700;letter-spacing:0.1em;padding:14px;cursor:pointer;transition:all 0.2s;box-shadow:0 4px 20px rgba(245,200,66,0.3);}
+.start-btn:hover{transform:translateY(-2px);box-shadow:0 8px 28px rgba(245,200,66,0.5);}
+
+/* LOADING */
+#loading-screen{gap:20px;}
+.load-icon{font-size:4rem;animation:spin 2s linear infinite;}
+@keyframes spin{0%{transform:rotate(0deg)}100%{transform:rotate(360deg)}}
+.load-title{font-family:'Cinzel',serif;font-size:1.4rem;color:var(--gold);}
+.load-msg{color:var(--muted);font-size:0.95rem;min-height:1.5em;}
+.load-bar-wrap{width:260px;height:4px;background:rgba(255,255,255,0.1);border-radius:2px;overflow:hidden;}
+.load-bar{height:100%;background:linear-gradient(90deg,var(--gold),#ff8a50);width:0%;border-radius:2px;transition:width 0.3s;}
+
+/* GAME SCREEN */
+#game-screen{flex-direction:column;justify-content:flex-start;padding:0;gap:0;}
+#hud{width:100%;display:flex;align-items:center;justify-content:space-between;padding:10px 20px;background:rgba(11,12,26,0.95);border-bottom:1px solid var(--border);flex-shrink:0;z-index:20;backdrop-filter:blur(8px);}
+.hud-left{display:flex;align-items:center;gap:12px;}
+.hud-logo{font-family:'Cinzel Decorative',cursive;font-size:0.95rem;color:var(--gold);}
+.hud-mode{font-size:0.72rem;color:var(--muted);background:rgba(255,255,255,0.06);padding:3px 10px;border-radius:20px;border:1px solid var(--border);}
+.hud-center{display:flex;align-items:center;gap:10px;}
+.hud-qnum{font-family:'Cinzel',serif;font-size:0.82rem;color:var(--muted);}
+.hud-bar{width:100px;height:6px;background:rgba(255,255,255,0.1);border-radius:3px;overflow:hidden;}
+.hud-bar-fill{height:100%;background:linear-gradient(90deg,var(--gold),#ff8a50);border-radius:3px;transition:width 0.4s;}
+.hud-right{display:flex;align-items:center;gap:14px;}
+.score-wrap{text-align:right;}
+.score-label{font-size:0.62rem;letter-spacing:0.15em;color:var(--muted);text-transform:uppercase;}
+.score-val{font-family:'Cinzel',serif;font-size:1.5rem;color:var(--gold);line-height:1;}
+.cam-toggle-btn{background:rgba(255,255,255,0.06);border:1px solid var(--border);border-radius:8px;color:var(--muted);font-size:0.78rem;font-family:'Nunito',sans-serif;padding:6px 12px;cursor:pointer;transition:all 0.2s;display:flex;align-items:center;gap:5px;}
+.cam-toggle-btn:hover{border-color:rgba(255,255,255,0.2);color:var(--text);}
+
+#game-area{flex:1;display:flex;width:100%;overflow:hidden;position:relative;}
+
+/* ARENA */
+#arena{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;padding:16px 20px;gap:14px;position:relative;overflow:hidden;}
+
+/* CAM PANEL */
+#cam-panel{width:290px;flex-shrink:0;display:flex;flex-direction:column;border-left:1px solid var(--border);background:rgba(10,11,22,0.97);transition:width 0.3s,border 0.3s;overflow:hidden;}
+#cam-panel.hidden-panel{width:0;border:none;}
+#cam-inner{padding:12px;display:flex;flex-direction:column;gap:10px;flex:1;min-width:266px;}
+.cam-title{font-family:'Cinzel',serif;font-size:0.72rem;letter-spacing:0.15em;color:var(--muted);text-transform:uppercase;}
+#cam-container{position:relative;border-radius:10px;overflow:hidden;border:1px solid var(--border);background:#000;aspect-ratio:4/3;}
+#input-video{display:none;}
+#output-canvas{width:100%;height:100%;display:block;transform:scaleX(-1);}
+.cam-gest-label{font-size:0.72rem;color:var(--muted);}
+#cam-gest-val{font-family:'Cinzel',serif;font-size:1rem;color:var(--gold);min-height:1.4em;filter:drop-shadow(0 0 6px rgba(245,200,66,0.4));}
+.lock-row{display:flex;align-items:center;gap:8px;}
+.lock-label{font-size:0.72rem;color:var(--muted);white-space:nowrap;}
+.lock-bar{flex:1;height:5px;background:rgba(255,255,255,0.1);border-radius:3px;overflow:hidden;}
+#lock-bar-fill{height:100%;background:linear-gradient(90deg,#63b3ed,var(--gold));width:0%;border-radius:3px;transition:width 0.05s;}
+.gg-title{font-family:'Cinzel',serif;font-size:0.68rem;letter-spacing:0.12em;color:var(--muted);text-transform:uppercase;}
+.gg-grid{display:grid;grid-template-columns:1fr 1fr;gap:5px;}
+.gg-item{background:rgba(255,255,255,0.04);border:1px solid var(--border);border-radius:6px;padding:6px 8px;display:flex;align-items:center;gap:6px;font-size:0.78rem;}
+.gg-icon{font-size:1.1rem;}
+.gg-text{color:var(--muted);line-height:1.3;}
+
+/* SPEECH BUBBLE */
+#speech-bubble{position:relative;background:rgba(255,255,255,0.96);color:#1a1a2e;border-radius:16px;padding:14px 18px;max-width:min(520px,90%);text-align:center;font-size:clamp(0.85rem,1.8vw,1rem);font-weight:700;line-height:1.4;box-shadow:0 4px 20px rgba(0,0,0,0.5);margin-bottom:4px;order:-1;}
+#speech-bubble::after{content:'';position:absolute;bottom:-13px;left:50%;transform:translateX(-50%);border:8px solid transparent;border-top-color:rgba(255,255,255,0.96);border-bottom:none;}
+.wiz-name-label{font-family:'Cinzel',serif;font-size:0.68rem;letter-spacing:0.12em;color:#555;margin-bottom:3px;text-transform:uppercase;}
+
+/* WIZARD */
+#wizard-wrap{display:flex;flex-direction:column;align-items:center;}
+#wizard-figure{font-size:clamp(4rem,8vw,7rem);filter:drop-shadow(0 0 28px var(--wiz-glow,rgba(255,255,255,0.3)));animation:wiz-float 2.5s ease-in-out infinite;transition:filter 0.5s;}
+@keyframes wiz-float{0%,100%{transform:translateY(0) rotate(-2deg)}50%{transform:translateY(-14px) rotate(2deg)}}
+#wizard-figure.dying{animation:wiz-die 0.6s ease-in forwards;}
+@keyframes wiz-die{0%{transform:scale(1) rotate(0);opacity:1;filter:brightness(3)}50%{transform:scale(1.3) rotate(10deg);opacity:0.7}100%{transform:scale(0) rotate(30deg);opacity:0}}
+#wizard-figure.spawning{animation:wiz-spawn 0.5s ease-out forwards;}
+@keyframes wiz-spawn{0%{transform:scale(0) rotate(-20deg);opacity:0}100%{transform:scale(1) rotate(0);opacity:1}}
+#element-badge{display:flex;align-items:center;gap:6px;padding:4px 12px;border-radius:20px;font-family:'Cinzel',serif;font-size:0.72rem;letter-spacing:0.1em;border:2px solid var(--wiz-color,#999);background:rgba(0,0,0,0.3);color:var(--wiz-color,#999);margin-top:4px;}
+
+/* TUTORIAL BANNER */
+.tutorial-banner{background:rgba(99,179,237,0.1);border:1px solid rgba(99,179,237,0.3);border-radius:8px;padding:7px 14px;font-size:0.8rem;color:#63b3ed;text-align:center;width:100%;max-width:580px;}
+
+/* ANSWER GRID */
+#answer-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;width:100%;max-width:620px;}
+.answer-btn{display:flex;align-items:center;gap:12px;padding:12px 16px;border-radius:var(--radius);border:2px solid transparent;cursor:pointer;position:relative;overflow:hidden;transition:transform 0.15s,box-shadow 0.15s;text-align:left;}
+.answer-btn:hover{transform:translateY(-2px);}
+.answer-btn.a{background:rgba(226,27,60,0.85);}
+.answer-btn.b{background:rgba(19,104,206,0.85);}
+.answer-btn.c{background:rgba(216,158,0,0.85);}
+.answer-btn.d{background:rgba(38,137,12,0.85);}
+.ans-gesture{background:rgba(0,0,0,0.3);border-radius:8px;padding:7px 9px;font-size:1.5rem;flex-shrink:0;display:flex;flex-direction:column;align-items:center;}
+.ans-gesture-lbl{font-size:0.5rem;color:rgba(255,255,255,0.55);margin-top:1px;font-family:'Cinzel',serif;letter-spacing:0.05em;}
+.ans-text{font-size:0.9rem;font-weight:700;color:#fff;line-height:1.3;}
+.ans-letter{position:absolute;top:7px;right:9px;font-family:'Cinzel',serif;font-size:0.68rem;color:rgba(255,255,255,0.35);}
+.answer-btn.correct-ans{border-color:#fff;box-shadow:0 0 0 3px rgba(255,255,255,0.25);animation:flash-correct 0.4s;}
+.answer-btn.wrong-ans{border-color:#ff4444;opacity:0.45;}
+.answer-btn.reveal-correct{border-color:#00ff88;box-shadow:0 0 0 3px rgba(0,255,136,0.25);}
+@keyframes flash-correct{0%,100%{transform:scale(1)}50%{transform:scale(1.04)}}
+
+/* KILL PHASE */
+#kill-phase{width:100%;max-width:560px;background:rgba(255,255,255,0.04);border:1px solid var(--border);border-radius:var(--radius);padding:18px 22px;display:flex;flex-direction:column;align-items:center;gap:12px;text-align:center;}
+#kill-phase h2{font-family:'Cinzel',serif;font-size:1.05rem;color:var(--gold);}
+#kill-phase p{color:var(--muted);font-size:0.88rem;line-height:1.5;}
+.kill-gestures{display:flex;gap:10px;flex-wrap:wrap;justify-content:center;}
+.kill-gest-card{background:rgba(255,255,255,0.06);border:2px solid var(--border);border-radius:10px;padding:10px 14px;display:flex;flex-direction:column;align-items:center;gap:3px;font-size:0.78rem;color:var(--muted);min-width:76px;}
+.kill-gest-card.target{animation:pulse-target 1s ease-in-out infinite;}
+@keyframes pulse-target{0%,100%{box-shadow:0 0 0 0 var(--wiz-glow,rgba(255,255,255,0.2))}50%{box-shadow:0 0 0 8px transparent}}
+.kg-icon{font-size:1.7rem;}
+.kg-name{font-family:'Cinzel',serif;font-size:0.66rem;letter-spacing:0.08em;}
+.kill-bar-wrap{width:100%;height:9px;background:rgba(255,255,255,0.1);border-radius:5px;overflow:hidden;}
+#kill-bar-fill{height:100%;border-radius:5px;width:0%;transition:width 0.05s;background:linear-gradient(90deg,var(--wiz-color,#999),#fff);}
+.kill-hint{font-size:0.8rem;color:var(--gold);animation:pulse-text 1.5s ease-in-out infinite;}
+@keyframes pulse-text{0%,100%{opacity:0.5}50%{opacity:1}}
+
+/* RESULT OVERLAY */
+#result-overlay{position:fixed;inset:0;z-index:50;background:rgba(0,0,0,0.75);backdrop-filter:blur(10px);display:flex;align-items:center;justify-content:center;opacity:0;pointer-events:none;transition:opacity 0.3s;}
+#result-overlay.show{opacity:1;pointer-events:all;}
+.result-card{background:var(--panel);border:1px solid var(--border);border-radius:20px;padding:36px 44px;text-align:center;max-width:420px;width:100%;box-shadow:var(--shadow);display:flex;flex-direction:column;gap:14px;}
+.result-icon{font-size:4rem;}
+.result-title{font-family:'Cinzel Decorative',cursive;font-size:1.9rem;}
+.result-sub{color:var(--muted);font-size:0.9rem;line-height:1.6;}
+.result-score-big{font-family:'Cinzel',serif;font-size:2.4rem;color:var(--gold);}
+.result-score-label{font-size:0.75rem;color:var(--muted);letter-spacing:0.15em;text-transform:uppercase;}
+.result-btns{display:flex;gap:10px;justify-content:center;margin-top:6px;}
+.result-btn{font-family:'Cinzel',serif;font-size:0.88rem;font-weight:700;letter-spacing:0.08em;padding:11px 22px;border-radius:10px;border:none;cursor:pointer;transition:all 0.2s;}
+.result-btn.primary{background:linear-gradient(135deg,var(--gold),#ff8a50);color:#0b0c1a;}
+.result-btn.primary:hover{transform:translateY(-2px);box-shadow:0 6px 20px rgba(245,200,66,0.4);}
+.result-btn.secondary{background:rgba(255,255,255,0.06);color:var(--muted);border:1px solid var(--border);}
+.result-btn.secondary:hover{color:var(--text);}
+.result-card.win .result-title{color:var(--gold);}
+.result-card.lose .result-title{color:#ef5350;}
+
+/* SPARKS */
+.spark{position:fixed;border-radius:50%;pointer-events:none;animation:spark-fly 0.9s ease-out forwards;}
+@keyframes spark-fly{0%{transform:translate(0,0) scale(1);opacity:1}100%{transform:translate(var(--tx),var(--ty)) scale(0);opacity:0}}
+
+@media(max-width:860px){
+  #cam-panel{width:220px;}
+  #answer-grid{grid-template-columns:1fr;max-width:380px;}
+}
+</style>
+</head>
+<body>
+
+<canvas id="bg-canvas"></canvas>
+
+<!-- MENU -->
+<div id="menu-screen" class="screen">
+  <span class="logo-icon">🧙</span>
+  <div class="logo-title">Shadow Wizards</div>
+  <div class="logo-sub">Gesture Spell Battle</div>
+
+  <div class="menu-card">
+    <div>
+      <div class="menu-label">Number of Questions</div>
+      <div class="diff-row" id="diff-row">
+        <button class="diff-btn" data-q="5">5</button>
+        <button class="diff-btn" data-q="10">10</button>
+        <button class="diff-btn active" data-q="20">20</button>
+        <button class="diff-btn" data-q="50">50</button>
+        <button class="diff-btn" data-q="100">100</button>
+        <button class="diff-btn" data-q="9999">∞</button>
+      </div>
+    </div>
+
+    <div>
+      <div class="menu-label">Game Mode</div>
+      <div class="mode-row">
+        <button class="mode-btn active" id="mode-normal" onclick="setMode('normal')">⚔️ Normal<br><small style="font-weight:400;color:var(--muted)">Wrong = Game Over</small></button>
+        <button class="mode-btn" id="mode-tutorial" onclick="setMode('tutorial')">🎓 Tutorial<br><small style="font-weight:400;color:var(--muted)">Can't die — learn freely</small></button>
+      </div>
+    </div>
+
+    <div class="toggle-row" id="skeleton-toggle" onclick="toggleSkeleton()">
+      <span>👁 Show hand skeleton tracking</span>
+      <div class="toggle-pill"></div>
+    </div>
+
+    <button class="start-btn" onclick="goToLoading()">⚡ Enter the Arena</button>
+  </div>
+</div>
+
+<!-- LOADING -->
+<div id="loading-screen" class="screen hidden">
+  <span class="load-icon">🔮</span>
+  <div class="load-title">Summoning the Arcane...</div>
+  <p class="load-msg" id="load-msg">Initialising...</p>
+  <div class="load-bar-wrap"><div class="load-bar" id="load-bar"></div></div>
+</div>
+
+<!-- GAME -->
+<div id="game-screen" class="screen hidden">
+  <!-- HUD -->
+  <div id="hud">
+    <div class="hud-left">
+      <div class="hud-logo">Shadow Wizards</div>
+      <div class="hud-mode" id="hud-mode-label">Normal</div>
+    </div>
+    <div class="hud-center">
+      <div class="hud-qnum" id="hud-qnum">Q 1</div>
+      <div class="hud-bar"><div class="hud-bar-fill" id="hud-bar-fill" style="width:0%"></div></div>
+      <div class="hud-qnum" id="hud-qtotal">/ 20</div>
+    </div>
+    <div class="hud-right">
+      <button class="cam-toggle-btn" onclick="toggleCamPanel()">📷 Camera</button>
+      <div class="score-wrap">
+        <div class="score-label">Score</div>
+        <div class="score-val" id="score-val">0</div>
+      </div>
+    </div>
+  </div>
+
+  <div id="game-area">
+    <!-- Arena (center) -->
+    <div id="arena">
+      <div class="tutorial-banner" id="tutorial-banner" style="display:none">🎓 Tutorial Mode — Wrong answers skip to next question instead of ending the game!</div>
+
+      <div id="speech-bubble">
+        <div class="wiz-name-label" id="wiz-name-label">The Dark Wizard</div>
+        <div id="question-text">Loading...</div>
+      </div>
+
+      <div id="wizard-wrap">
+        <div id="wizard-figure">🧙‍♂️</div>
+        <div id="element-badge"><span id="elem-icon">🔥</span><span id="elem-name">Fire Wizard</span></div>
+      </div>
+
+      <!-- Answer buttons -->
+      <div id="answer-grid">
+        <button class="answer-btn a" id="btn-a" onclick="selectAnswer(0)">
+          <div class="ans-gesture"><span>✌️</span><span class="ans-gesture-lbl">Peace</span></div>
+          <div class="ans-text" id="ans-a">...</div>
+          <div class="ans-letter">A</div>
+        </button>
+        <button class="answer-btn b" id="btn-b" onclick="selectAnswer(1)">
+          <div class="ans-gesture"><span>👊</span><span class="ans-gesture-lbl">Fist</span></div>
+          <div class="ans-text" id="ans-b">...</div>
+          <div class="ans-letter">B</div>
+        </button>
+        <button class="answer-btn c" id="btn-c" onclick="selectAnswer(2)">
+          <div class="ans-gesture"><span>👍</span><span class="ans-gesture-lbl">Thumb</span></div>
+          <div class="ans-text" id="ans-c">...</div>
+          <div class="ans-letter">C</div>
+        </button>
+        <button class="answer-btn d" id="btn-d" onclick="selectAnswer(3)">
+          <div class="ans-gesture"><span>🖐️</span><span class="ans-gesture-lbl">Open</span></div>
+          <div class="ans-text" id="ans-d">...</div>
+          <div class="ans-letter">D</div>
+        </button>
+      </div>
+
+      <!-- Kill phase -->
+      <div id="kill-phase" style="display:none">
+        <h2 id="kill-title">Cast the Killing Spell!</h2>
+        <p id="kill-desc">Use the correct elemental gesture to defeat the wizard!</p>
+        <div class="kill-gestures" id="kill-gestures-display"></div>
+        <div style="width:100%">
+          <div class="kill-bar-wrap"><div id="kill-bar-fill"></div></div>
+          <div class="kill-hint" style="margin-top:6px" id="kill-hint">Hold the correct gesture to cast!</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Camera panel -->
+    <div id="cam-panel">
+      <div id="cam-inner">
+        <div class="cam-title">📷 Camera &amp; Tracking</div>
+        <div id="cam-container">
+          <video id="input-video" playsinline></video>
+          <canvas id="output-canvas"></canvas>
+        </div>
+        <div class="cam-gest-label">Detected Gesture</div>
+        <div id="cam-gest-val">—</div>
+        <div class="lock-row">
+          <div class="lock-label">Lock progress</div>
+          <div class="lock-bar"><div id="lock-bar-fill"></div></div>
+        </div>
+
+        <div class="gg-title" style="margin-top:4px">Answer Gestures</div>
+        <div class="gg-grid">
+          <div class="gg-item"><span class="gg-icon">✌️</span><div class="gg-text">Peace → <b>A</b></div></div>
+          <div class="gg-item"><span class="gg-icon">👊</span><div class="gg-text">Fist → <b>B</b></div></div>
+          <div class="gg-item"><span class="gg-icon">👍</span><div class="gg-text">Thumb → <b>C</b></div></div>
+          <div class="gg-item"><span class="gg-icon">🖐️</span><div class="gg-text">Open → <b>D</b></div></div>
+        </div>
+        <div class="gg-title" style="margin-top:4px">Spell Gestures</div>
+        <div class="gg-grid">
+          <div class="gg-item"><span class="gg-icon">✊</span><div class="gg-text">Fist = Rock 🪨</div></div>
+          <div class="gg-item"><span class="gg-icon">🤘</span><div class="gg-text">Horns = Fire 🔥</div></div>
+          <div class="gg-item"><span class="gg-icon">🤙</span><div class="gg-text">Shaka = Water 💧</div></div>
+          <div class="gg-item"><span class="gg-icon">🖐️</span><div class="gg-text">Open = Wind 🌬️</div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- RESULT -->
+<div id="result-overlay">
+  <div class="result-card" id="result-card">
+    <div class="result-icon" id="result-icon">💀</div>
+    <div class="result-title" id="result-title">Game Over</div>
+    <div class="result-score-label">Final Score</div>
+    <div class="result-score-big" id="result-score">0</div>
+    <div class="result-sub" id="result-sub"></div>
+    <div class="result-btns">
+      <button class="result-btn primary" onclick="playAgain()">🔄 Play Again</button>
+      <button class="result-btn secondary" onclick="goMenu()">🏠 Menu</button>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ─── QUESTION BANK ─── */
+const QUESTION_BANK=[
+  {q:"What does CPU stand for?",opts:["Central Processing Unit","Computer Personal Unit","Central Program Utility","Core Processing Unit"],ans:0},
+  {q:"What does HTML stand for?",opts:["HyperText Markup Language","High Tech Modern Language","HyperText Machine Logic","Home Tool Markup Logic"],ans:0},
+  {q:"How many bits are in one byte?",opts:["4","16","8","32"],ans:2},
+  {q:"Which of these is NOT a programming language?",opts:["Python","HTML","Java","Ruby"],ans:1},
+  {q:"What does RAM stand for?",opts:["Read Access Memory","Random Access Memory","Real Arithmetic Memory","Remote Access Module"],ans:1},
+  {q:"Which language makes web pages interactive?",opts:["Python","PHP","JavaScript","Ruby"],ans:2},
+  {q:"What symbol starts a comment in Python?",opts:["//","/*","#","--"],ans:2},
+  {q:"In binary, what is the value of 1010?",opts:["6","8","10","12"],ans:2},
+  {q:"What does 'bug' mean in programming?",opts:["A virus","An error in code","A feature","A type of loop"],ans:1},
+  {q:"What is the internet?",opts:["A single website","A global network of computers","A type of software","A storage device"],ans:1},
+  {q:"What does CSS stand for?",opts:["Computer Style Sheets","Cascading Style Sheets","Creative Style System","Content Style Spec"],ans:1},
+  {q:"Which stores data permanently?",opts:["RAM","CPU","SSD","GPU"],ans:2},
+  {q:"What is an algorithm?",opts:["A type of computer","A step-by-step set of instructions","A programming language","A database"],ans:1},
+  {q:"What does 'open source' mean?",opts:["Free to use always","Source code is public","No bugs in the code","Only runs on Linux"],ans:1},
+  {q:"Which number system uses base 2?",opts:["Decimal","Hexadecimal","Binary","Octal"],ans:2},
+  {q:"What does URL stand for?",opts:["Uniform Resource Locator","Universal Remote Link","Unique Resource Layer","Unified Reference Location"],ans:0},
+  {q:"What is a 'variable' in programming?",opts:["A type of loop","A named container for data","A function","A comment"],ans:1},
+  {q:"Correct Python syntax to print 'Hello'?",opts:["echo 'Hello'","console.log('Hello')","print('Hello')","printf('Hello')"],ans:2},
+  {q:"What does an 'if' statement do?",opts:["Repeats code","Makes a decision based on a condition","Defines a function","Imports a library"],ans:1},
+  {q:"What is a 'loop' in programming?",opts:["A type of variable","Code that repeats","A comment block","A data type"],ans:1},
+  {q:"What does HTTP stand for?",opts:["HyperText Transfer Protocol","High Tech Transfer Platform","HyperText Tool Program","Home Transfer Protocol"],ans:0},
+  {q:"What is a 'function' in programming?",opts:["A type of data","A reusable block of code","A loop","A variable"],ans:1},
+  {q:"Which of these is an input device?",opts:["Monitor","Speaker","Keyboard","Printer"],ans:2},
+  {q:"What is a 'compiler'?",opts:["A type of virus","Software that translates code to machine language","A storage device","A web browser"],ans:1},
+  {q:"Output of 3 + 4 * 2 in most languages?",opts:["14","11","10","8"],ans:1},
+  {q:"What is 'pseudocode'?",opts:["A type of encryption","Plain English-like algorithm description","A real programming language","Code with errors"],ans:1},
+  {q:"Which data type stores True or False?",opts:["Integer","String","Float","Boolean"],ans:3},
+  {q:"What does 'debugging' mean?",opts:["Writing comments","Finding and fixing errors in code","Deleting code","Adding new features"],ans:1},
+  {q:"What renders graphics on a screen?",opts:["CPU","RAM","GPU","SSD"],ans:2},
+  {q:"What is 'encryption'?",opts:["Compressing files","Scrambling data to secure it","Deleting data","Copying data"],ans:1},
+  {q:"What is an 'array' in programming?",opts:["A single value","A collection of values","A loop","A function"],ans:1},
+  {q:"What does 'Wi-Fi' stand for?",opts:["Wireless Fidelity","Wide Frequency","Wireless Frequency Internet","Wire-Free Internet"],ans:0},
+  {q:"What is 'machine code'?",opts:["Python code","Binary instructions the CPU runs directly","A high-level language","Compressed code"],ans:1},
+  {q:"What does 'DRY' stand for in programming?",opts:["Do Repeat Yourself","Don't Repeat Yourself","Dynamic Routing Yes","Data Recovery Yield"],ans:1},
+  {q:"What is 'phishing'?",opts:["A fishing game","A cybersecurity attack using fake messages","A file compression method","A type of database"],ans:1},
+  {q:"Purpose of a 'firewall'?",opts:["Speed up the internet","Stop server fires","Block unauthorised network access","Store data securely"],ans:2},
+  {q:"Which data structure is LIFO (Last In First Out)?",opts:["Queue","Array","Stack","List"],ans:2},
+  {q:"What is 12 × 8?",opts:["86","96","106","88"],ans:1},
+  {q:"Area of a rectangle 5cm × 7cm?",opts:["24cm²","30cm²","35cm²","40cm²"],ans:2},
+  {q:"What is √144?",opts:["11","12","13","14"],ans:1},
+  {q:"What is 25% of 200?",opts:["25","40","50","75"],ans:2},
+  {q:"What is 2³ (2 to the power of 3)?",opts:["5","6","8","9"],ans:2},
+  {q:"Perimeter of a square with side 6cm?",opts:["12cm","18cm","24cm","36cm"],ans:2},
+  {q:"Solve: 3x = 21. What is x?",opts:["5","6","7","8"],ans:2},
+  {q:"Mean of: 4, 8, 12, 16?",opts:["8","10","12","14"],ans:1},
+  {q:"What is 15% of 80?",opts:["10","12","15","16"],ans:1},
+  {q:"Which triangle has all equal sides?",opts:["Scalene","Isoceles","Right-angled","Equilateral"],ans:3},
+  {q:"What is 0.5 as a percentage?",opts:["5%","25%","50%","75%"],ans:2},
+  {q:"Volume of a cube with side 3cm?",opts:["9cm³","18cm³","24cm³","27cm³"],ans:3},
+  {q:"Next prime number after 7?",opts:["8","9","10","11"],ans:3},
+  {q:"Solve: 2x + 5 = 15. What is x?",opts:["3","4","5","6"],ans:2},
+  {q:"How many degrees in a right angle?",opts:["45°","60°","90°","180°"],ans:2},
+  {q:"What is 3/4 as a decimal?",opts:["0.25","0.5","0.75","0.8"],ans:2},
+  {q:"LCM of 4 and 6?",opts:["8","10","12","24"],ans:2},
+  {q:"What is 7²?",opts:["14","42","49","56"],ans:2},
+  {q:"Sides of a hexagon?",opts:["5","6","7","8"],ans:1},
+  {q:"Median of: 3, 7, 2, 9, 5?",opts:["3","5","6","7"],ans:1},
+  {q:"What is 1/3 + 1/6?",opts:["1/2","2/9","1/3","2/6"],ans:0},
+  {q:"What is 40% of 150?",opts:["50","55","60","65"],ans:2},
+  {q:"Circumference formula for a circle?",opts:["πr²","2πr","πd²","r²π"],ans:1},
+  {q:"Train at 60mph for 2.5 hours — how far?",opts:["120 miles","135 miles","150 miles","180 miles"],ans:2},
+  {q:"What is -3 × -4?",opts:["-12","7","12","-7"],ans:2},
+  {q:"HCF of 12 and 18?",opts:["3","4","6","9"],ans:2},
+  {q:"Expand: 3(x + 4)",opts:["3x + 4","x + 12","3x + 12","3x + 7"],ans:2},
+  {q:"What is 2/5 as a percentage?",opts:["20%","25%","35%","40%"],ans:3},
+  {q:"Probability of rolling a 4 on a fair die?",opts:["1/4","1/5","1/6","1/3"],ans:2},
+  {q:"Range of: 5, 2, 8, 11, 3?",opts:["6","7","8","9"],ans:3},
+  {q:"How many cm in 1.5 metres?",opts:["15","100","150","1500"],ans:2},
+  {q:"What is 5! (5 factorial)?",opts:["25","60","120","150"],ans:2},
+  {q:"What is 8³?",opts:["24","64","512","1024"],ans:2},
+  {q:"Right triangle legs 3 and 4 — hypotenuse?",opts:["5","6","7","8"],ans:0},
+  {q:"What does pi (π) approximately equal?",opts:["2.14","3.14","3.41","4.13"],ans:1},
+  {q:"What is 75% as a fraction in lowest terms?",opts:["3/4","7/10","2/3","5/8"],ans:0},
+  {q:"What is 'localhost' in networking?",opts:["A web host company","Your own computer","A type of server","The router"],ans:1},
+  {q:"What does 'DDoS' stand for in cybersecurity?",opts:["Distributed Denial of Service","Data Deletion of Systems","Dynamic Data over Server","Direct Data Server"],ans:0},
+  {q:"How many values can 3 bits represent?",opts:["3","6","8","16"],ans:2},
+  {q:"What is an IP address?",opts:["Internet Protocol address — identifies a device on a network","A web browser","A type of virus","A file format"],ans:0},
+  {q:"Which logic gate outputs TRUE only when both inputs are TRUE?",opts:["OR","NOT","AND","XOR"],ans:2},
+  {q:"What is 'abstraction' in computing?",opts:["Writing complex code","Hiding complexity, showing only what's needed","Running two programs at once","Storing data"],ans:1},
+  {q:"What is the purpose of an operating system?",opts:["Browsing the internet","Managing hardware and software resources","Writing documents","Playing games"],ans:1},
+  {q:"What does 'GUI' stand for?",opts:["General User Interface","Graphical User Interface","Graphical Utility Input","General Utility Interface"],ans:1},
+  {q:"What is 'decomposition' in computer science?",opts:["Deleting files","Breaking a problem into smaller parts","Compressing data","Encrypting information"],ans:1},
+  {q:"What does SQL stand for?",opts:["Simple Query Language","Structured Query Language","Sequential Query Logic","Standard Question Language"],ans:1},
+  {q:"What is a 'boolean'?",opts:["A floating point number","A data type that is True or False","A type of array","A loop structure"],ans:1},
+  {q:"Which is the correct way to declare a list in Python?",opts:["list = {}","list = ()","list = []","list = <>"],ans:2},
+  {q:"What is 'cloud computing'?",opts:["Computing done in the sky","Storing and accessing data over the internet","A type of RAM","Weather forecasting software"],ans:1},
+  {q:"What is the median of: 1, 3, 5, 7, 9?",opts:["3","4","5","6"],ans:2},
+  {q:"What is 17 × 5?",opts:["75","80","85","90"],ans:2},
+  {q:"Simplify: 24/36",opts:["1/2","2/3","3/4","4/5"],ans:1},
+  {q:"What is 6² + 8²?",opts:["100","102","110","196"],ans:0},
+  {q:"Solve: x/4 = 7. What is x?",opts:["11","21","28","32"],ans:2},
+  {q:"What is 3.5 × 4?",opts:["12","13","14","15"],ans:2},
+  {q:"Interior angles of a triangle add to?",opts:["90°","180°","270°","360°"],ans:1},
+  {q:"What is 2/3 of 90?",opts:["45","50","60","65"],ans:2},
+  {q:"Convert 0.125 to a fraction",opts:["1/4","1/6","1/8","1/10"],ans:2},
+  {q:"What is the output of: 10 % 3 in Python?",opts:["3","1","0","33"],ans:1},
+  {q:"What is 'recursion' in programming?",opts:["A type of loop","A function that calls itself","A sorting algorithm","A database query"],ans:1},
+];
+
+/* ─── ELEMENTS ─── */
+const ELEMENTS=[
+  {name:'Fire',  icon:'🔥',emoji:'🧙‍♂️',color:'#ff5722',glow:'rgba(255,87,34,0.5)',
+   killGesture:'rock', killIcon:'✊',killName:'Rock',killEmoji:'🪨',desc:'Rock smothers Fire — show a FIST!'},
+  {name:'Ice',   icon:'❄️', emoji:'🧝',color:'#29b6f6',glow:'rgba(41,182,246,0.5)',
+   killGesture:'fire', killIcon:'🤘',killName:'Fire',killEmoji:'🔥',desc:'Fire melts Ice — show HORNS!'},
+  {name:'Wind',  icon:'🌬️',emoji:'🧚',color:'#66bb6a',glow:'rgba(102,187,106,0.5)',
+   killGesture:'water',killIcon:'🤙',killName:'Water',killEmoji:'💧',desc:'Water douses Wind — show a SHAKA!'},
+  {name:'Rock',  icon:'🪨',emoji:'🧌',color:'#a1887f',glow:'rgba(161,136,127,0.5)',
+   killGesture:'air',  killIcon:'🖐️',killName:'Air',killEmoji:'🌬️',desc:'Air blows away Rock — OPEN PALM!'},
+];
+
+// gesture raw -> element kill key
+const KILL_RAW_MAP={rock:'rock', horns:'fire', shaka:'water', open:'air'};
+// answer gesture raw -> button index
+const ANS_MAP={peace:0, rock:1, thumb:2, open:3};
+
+/* ─── STATE ─── */
+let gameMode='normal', maxQ=20, showSkeleton=false, camPanelOpen=true;
+let score=0, qIdx=0, shuffledQs=[], currentQ=null, currentElem=null;
+let phase='question'; // 'question' | 'kill' | 'result'
+let answerLocked=false;
+let lockGesture=null, lockStart=null, lockProg=0;
+const LOCK_MS=1500;
+let rawGesture=null;
+
+/* ─── BG PARTICLES ─── */
+(function(){
+  const c=document.getElementById('bg-canvas'),ctx=c.getContext('2d');
+  const stars=[];
+  function resize(){c.width=innerWidth;c.height=innerHeight;}
+  resize(); window.addEventListener('resize',resize);
+  for(let i=0;i<100;i++) stars.push({x:Math.random()*innerWidth,y:Math.random()*innerHeight,r:Math.random()*1.4+0.3,a:Math.random(),da:Math.random()*0.008+0.002,col:`hsl(${220+Math.random()*60},70%,${60+Math.random()*30}%)`});
+  function draw(){ctx.clearRect(0,0,c.width,c.height);stars.forEach(s=>{s.a+=s.da;if(s.a>1||s.a<0)s.da*=-1;ctx.globalAlpha=s.a*0.7;ctx.fillStyle=s.col;ctx.beginPath();ctx.arc(s.x,s.y,s.r,0,Math.PI*2);ctx.fill();});ctx.globalAlpha=1;requestAnimationFrame(draw);}
+  draw();
+})();
+
+/* ─── MENU ─── */
+document.getElementById('diff-row').addEventListener('click',e=>{
+  const b=e.target.closest('.diff-btn');if(!b)return;
+  document.querySelectorAll('.diff-btn').forEach(x=>x.classList.remove('active'));
+  b.classList.add('active'); maxQ=parseInt(b.dataset.q);
+});
+function setMode(m){gameMode=m;document.getElementById('mode-normal').classList.toggle('active',m==='normal');document.getElementById('mode-tutorial').classList.toggle('active',m==='tutorial');}
+function toggleSkeleton(){showSkeleton=!showSkeleton;document.getElementById('skeleton-toggle').classList.toggle('on',showSkeleton);}
+
+/* ─── LOADING / MEDIAPIPE ─── */
+function goToLoading(){showScreen('loading-screen');initMediaPipe();}
+function setLoad(p,m){document.getElementById('load-bar').style.width=p+'%';document.getElementById('load-msg').textContent=m;}
+
+let hands, mpCamera;
+async function initMediaPipe(){
+  setLoad(10,'Loading MediaPipe Hands...');
+  const video=document.getElementById('input-video');
+  const canvas=document.getElementById('output-canvas');
+  const ctx=canvas.getContext('2d');
+  hands=new Hands({locateFile:f=>`https://cdn.jsdelivr.net/npm/@mediapipe/hands/${f}`});
+  hands.setOptions({maxNumHands:1,modelComplexity:1,minDetectionConfidence:0.75,minTrackingConfidence:0.6});
+  setLoad(40,'Initialising hand tracker...');
+  hands.onResults(res=>{
+    canvas.width=video.videoWidth||320;
+    canvas.height=video.videoHeight||240;
+    ctx.save();ctx.clearRect(0,0,canvas.width,canvas.height);
+    ctx.drawImage(res.image,0,0,canvas.width,canvas.height);
+    if(res.multiHandLandmarks?.length){
+      const lm=res.multiHandLandmarks[0];
+      if(showSkeleton){
+        drawConnectors(ctx,lm,HAND_CONNECTIONS,{color:'rgba(99,179,237,0.7)',lineWidth:2});
+        drawLandmarks(ctx,lm,{color:'#63b3ed',fillColor:'rgba(99,179,237,0.3)',radius:3,lineWidth:1});
+      }
+      rawGesture=classify(lm);
+    } else { rawGesture=null; }
+    ctx.restore();
+    updateGestureUI();
+  });
+  setLoad(70,'Starting camera...');
+  try{
+    const stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'user'}});
+    video.srcObject=stream; await video.play();
+    mpCamera=new Camera(video,{onFrame:async()=>{await hands.send({image:video});},width:320,height:240});
+    await mpCamera.start();
+  } catch(e){
+    setLoad(0,'❌ Camera access denied. Please allow camera and reload the page.');
+    return;
+  }
+  setLoad(100,'Ready!');
+  setTimeout(()=>{showScreen('game-screen');initGame();},600);
+}
+
+/* ─── GESTURE CLASSIFIER ─── */
+function classify(lm){
+  const tips=[8,12,16,20],pips=[6,10,14,18];
+  const ext=tips.map((t,i)=>lm[t].y<lm[pips[i]].y);
+  const[idx,mid,rng,pnk]=ext;
+  const thumbExt=lm[4].x<lm[3].x;
+  if(thumbExt&&idx&&mid&&rng&&pnk) return 'open';
+  if(!idx&&!mid&&!rng&&!pnk&&!thumbExt) return 'rock';
+  if(thumbExt&&!idx&&!mid&&!rng&&!pnk) return 'thumb';
+  if(!thumbExt&&idx&&mid&&!rng&&!pnk) return 'peace';
+  if(!thumbExt&&idx&&!mid&&!rng&&pnk) return 'horns';
+  if(thumbExt&&!idx&&!mid&&!rng&&pnk) return 'shaka';
+  return null;
+}
+
+const GEST_LABELS={peace:'✌️ Peace (A)',rock:'👊 Fist (B)',thumb:'👍 Thumb (C)',open:'🖐️ Open (D)',horns:'🤘 Horns',shaka:'🤙 Shaka'};
+
+function updateGestureUI(){
+  document.getElementById('cam-gest-val').textContent=rawGesture?(GEST_LABELS[rawGesture]||rawGesture):'—';
+  if(answerLocked||phase==='result') return;
+  if(phase==='question') handleAnsLock();
+  else if(phase==='kill') handleKillLock();
+}
+
+function handleAnsLock(){
+  const ansIdx=ANS_MAP[rawGesture];
+  if(ansIdx===undefined){resetLock();return;}
+  if(lockGesture===rawGesture){
+    const el=Date.now()-lockStart; lockProg=Math.min(el/LOCK_MS,1);
+    document.getElementById('lock-bar-fill').style.width=(lockProg*100)+'%';
+    if(lockProg>=1){answerLocked=true;selectAnswer(ansIdx);}
+  } else {
+    lockGesture=rawGesture;lockStart=Date.now();lockProg=0;
+    document.getElementById('lock-bar-fill').style.width='0%';
+  }
+}
+
+function handleKillLock(){
+  const needed=currentElem.killGesture;
+  const gestureMap={rock:'rock',fire:'horns',water:'shaka',air:'open'};
+  const neededRaw=gestureMap[needed];
+  if(rawGesture===neededRaw){
+    if(lockGesture===rawGesture){
+      const el=Date.now()-lockStart; lockProg=Math.min(el/LOCK_MS,1);
+      document.getElementById('lock-bar-fill').style.width=(lockProg*100)+'%';
+      document.getElementById('kill-bar-fill').style.width=(lockProg*100)+'%';
+      if(lockProg>=1){answerLocked=true;killWizard();}
+    } else { lockGesture=rawGesture;lockStart=Date.now();lockProg=0; }
+  } else {
+    resetLock();
+    document.getElementById('kill-bar-fill').style.width='0%';
+  }
+}
+
+function resetLock(){lockGesture=null;lockStart=null;lockProg=0;document.getElementById('lock-bar-fill').style.width='0%';}
+
+/* ─── GAME INIT ─── */
+function initGame(){
+  score=0;qIdx=0;answerLocked=false;phase='question';
+  const pool=[...QUESTION_BANK];
+  shuffledQs=shuffle(pool).slice(0,Math.min(maxQ,pool.length));
+  document.getElementById('score-val').textContent='0';
+  document.getElementById('hud-qtotal').textContent=`/ ${shuffledQs.length}`;
+  document.getElementById('hud-mode-label').textContent=gameMode==='tutorial'?'Tutorial':'Normal';
+  document.getElementById('tutorial-banner').style.display=gameMode==='tutorial'?'block':'none';
+  document.getElementById('result-overlay').classList.remove('show');
+  spawnWizard(()=>loadQuestion());
+}
+
+/* ─── WIZARD ─── */
+function spawnWizard(cb){
+  currentElem=ELEMENTS[Math.floor(Math.random()*ELEMENTS.length)];
+  document.documentElement.style.setProperty('--wiz-color',currentElem.color);
+  document.documentElement.style.setProperty('--wiz-glow',currentElem.glow);
+  const fig=document.getElementById('wizard-figure');
+  fig.textContent=currentElem.emoji;
+  fig.style.setProperty('--wiz-glow',currentElem.glow);
+  fig.className='spawning';
+  document.getElementById('wiz-name-label').textContent=currentElem.name+' Wizard';
+  document.getElementById('wiz-name-label').style.color=currentElem.color;
+  document.getElementById('elem-icon').textContent=currentElem.icon;
+  document.getElementById('elem-name').textContent=currentElem.name+' Wizard';
+  const badge=document.getElementById('element-badge');
+  badge.style.borderColor=currentElem.color;badge.style.color=currentElem.color;
+  setTimeout(()=>{fig.className='';if(cb)cb();},500);
+}
+
+function killWizard(){
+  document.getElementById('wizard-figure').className='dying';
+  spawnSparks(currentElem.color);
+  setTimeout(()=>{
+    score++;document.getElementById('score-val').textContent=score;
+    qIdx++;
+    if(qIdx>=shuffledQs.length){showWin();return;}
+    phase='question';answerLocked=false;resetLock();
+    document.getElementById('kill-phase').style.display='none';
+    document.getElementById('answer-grid').style.display='grid';
+    spawnWizard(()=>loadQuestion());
+  },700);
+}
+
+/* ─── QUESTION ─── */
+function loadQuestion(){
+  if(qIdx>=shuffledQs.length){showWin();return;}
+  currentQ=shuffledQs[qIdx];
+  answerLocked=false;resetLock();phase='question';
+  const opts=currentQ.opts.map((o,i)=>({text:o,correct:i===currentQ.ans}));
+  shuffle(opts);
+  const ids=['btn-a','btn-b','btn-c','btn-d'],txts=['ans-a','ans-b','ans-c','ans-d'],cls=['a','b','c','d'];
+  ids.forEach((id,i)=>{
+    const b=document.getElementById(id);
+    b.dataset.correct=opts[i].correct;
+    b.className='answer-btn '+cls[i];
+    b.style.pointerEvents='auto';
+  });
+  txts.forEach((id,i)=>{document.getElementById(id).textContent=opts[i].text;});
+  document.getElementById('question-text').textContent=currentQ.q;
+  document.getElementById('hud-qnum').textContent=`Q ${qIdx+1}`;
+  document.getElementById('hud-bar-fill').style.width=((qIdx/shuffledQs.length)*100)+'%';
+  document.getElementById('answer-grid').style.display='grid';
+  document.getElementById('kill-phase').style.display='none';
+}
+
+/* ─── ANSWER ─── */
+function selectAnswer(idx){
+  if(phase!=='question') return;
+  resetLock();
+  const btns=['btn-a','btn-b','btn-c','btn-d'].map(id=>document.getElementById(id));
+  const chosen=btns[idx];
+  const correct=chosen.dataset.correct==='true';
+  btns.forEach(b=>b.style.pointerEvents='none');
+  if(correct){
+    chosen.classList.add('correct-ans');
+    btns.forEach(b=>{if(b.dataset.correct==='true')b.classList.add('reveal-correct');else b.classList.add('wrong-ans');});
+    setTimeout(()=>{document.getElementById('answer-grid').style.display='none';showKillPhase();},900);
+  } else {
+    chosen.classList.add('wrong-ans');
+    btns.forEach(b=>{if(b.dataset.correct==='true')b.classList.add('reveal-correct');});
+    if(gameMode==='tutorial'){
+      setTimeout(()=>{
+        qIdx++;answerLocked=false;
+        if(qIdx>=shuffledQs.length){showWin();return;}
+        spawnWizard(()=>loadQuestion());
+      },1400);
+    } else {
+      setTimeout(()=>showGameOver(),1200);
+    }
+  }
+}
+
+/* ─── KILL PHASE ─── */
+function showKillPhase(){
+  phase='kill';answerLocked=false;resetLock();
+  const e=currentElem;
+  document.getElementById('kill-title').textContent=`💥 Finish the ${e.name} Wizard!`;
+  document.getElementById('kill-desc').textContent=e.desc;
+  const gestures=[
+    {name:'Rock', icon:'✊',elem:'rock'},{name:'Fire',icon:'🤘',elem:'fire'},
+    {name:'Water',icon:'🤙',elem:'water'},{name:'Wind',icon:'🖐️',elem:'air'}
+  ];
+  const cont=document.getElementById('kill-gestures-display');
+  cont.innerHTML='';
+  gestures.forEach(g=>{
+    const card=document.createElement('div');
+    card.className='kill-gest-card'+(g.elem===e.killGesture?' target':'');
+    if(g.elem===e.killGesture){
+      card.style.borderColor=e.color;card.style.background=`rgba(${hexRgb(e.color)},0.15)`;card.style.color=e.color;
+    }
+    card.innerHTML=`<div class="kg-icon">${g.icon}</div><div class="kg-name">${g.name}</div>`;
+    cont.appendChild(card);
+  });
+  document.getElementById('kill-bar-fill').style.width='0%';
+  document.getElementById('kill-bar-fill').style.background=`linear-gradient(90deg,${e.color},#fff)`;
+  document.getElementById('kill-phase').style.display='flex';
+}
+
+function hexRgb(h){const r=parseInt(h.slice(1,3),16),g=parseInt(h.slice(3,5),16),b=parseInt(h.slice(5,7),16);return `${r},${g},${b}`;}
+
+/* ─── END SCREENS ─── */
+function showGameOver(){
+  phase='result';
+  const card=document.getElementById('result-card');
+  card.className='result-card lose';
+  document.getElementById('result-icon').textContent='💀';
+  document.getElementById('result-title').textContent='Game Over!';
+  document.getElementById('result-score').textContent=score;
+  document.getElementById('result-sub').textContent=`You answered incorrectly and the wizard defeated you! You bested ${score} wizard${score!==1?'s':''} before falling. Will you try again?`;
+  document.getElementById('result-overlay').classList.add('show');
+}
+
+function showWin(){
+  phase='result';
+  const card=document.getElementById('result-card');
+  card.className='result-card win';
+  document.getElementById('result-icon').textContent='🏆';
+  document.getElementById('result-title').textContent='You Win!';
+  document.getElementById('result-score').textContent=score;
+  document.getElementById('result-sub').textContent=`Incredible! You defeated all ${score} Shadow Wizards and conquered the arena! You are a true Archmage!`;
+  document.getElementById('result-overlay').classList.add('show');
+  launchConfetti();
+}
+
+function playAgain(){document.getElementById('result-overlay').classList.remove('show');initGame();}
+function goMenu(){document.getElementById('result-overlay').classList.remove('show');showScreen('menu-screen');}
+function toggleCamPanel(){camPanelOpen=!camPanelOpen;document.getElementById('cam-panel').classList.toggle('hidden-panel',!camPanelOpen);}
+
+/* ─── EFFECTS ─── */
+function spawnSparks(color){
+  const cx=innerWidth/2,cy=innerHeight/2;
+  for(let i=0;i<18;i++){
+    const s=document.createElement('div');s.className='spark';
+    const size=Math.random()*12+6,angle=Math.random()*Math.PI*2,dist=60+Math.random()*200;
+    s.style.cssText=`width:${size}px;height:${size}px;background:${color};left:${cx}px;top:${cy}px;--tx:${Math.cos(angle)*dist}px;--ty:${Math.sin(angle)*dist}px;animation-delay:${Math.random()*0.2}s;box-shadow:0 0 10px ${color};`;
+    document.body.appendChild(s);setTimeout(()=>s.remove(),1100);
+  }
+}
+
+function launchConfetti(){
+  const cols=['#f5c842','#ff5722','#29b6f6','#66bb6a','#e91e63','#9c27b0'];
+  for(let i=0;i<80;i++){
+    setTimeout(()=>{
+      const s=document.createElement('div');s.className='spark';
+      const size=Math.random()*10+4;
+      s.style.cssText=`width:${size}px;height:${size}px;background:${cols[Math.floor(Math.random()*cols.length)]};border-radius:${Math.random()>0.5?'50%':'2px'};left:${Math.random()*innerWidth}px;top:-10px;--tx:${(Math.random()-0.5)*300}px;--ty:${200+Math.random()*500}px;animation-duration:1.8s;`;
+      document.body.appendChild(s);setTimeout(()=>s.remove(),1900);
+    },i*25);
+  }
+}
+
+/* ─── UTILS ─── */
+function shuffle(a){const arr=[...a];for(let i=arr.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[arr[i],arr[j]]=[arr[j],arr[i]];}return arr;}
+function showScreen(id){document.querySelectorAll('.screen').forEach(s=>s.classList.add('hidden'));document.getElementById(id).classList.remove('hidden');}
+</script>
+</body>
+</html>
